@@ -1,4 +1,4 @@
-#strit
+# strit
 
 [![GoDoc](https://godoc.org/github.com/maxim2266/strit?status.svg)](https://godoc.org/github.com/maxim2266/strit)
 [![Go report](http://goreportcard.com/badge/maxim2266/strit)](http://goreportcard.com/report/maxim2266/strit)
