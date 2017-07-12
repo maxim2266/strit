@@ -272,6 +272,22 @@ func TestCommandError(t *testing.T) {
 	//	t.Logf("Message: %q", err)
 }
 
+func TestNullTerminatedStrings(t *testing.T) {
+	list, err := FromStringSF(ScanNullTerminatedStrings, "aaa\000bbb\000ccc\000").Strings()
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	s := strings.Join(list, "")
+
+	if s != "aaabbbccc" {
+		t.Errorf("Unexpected string: %q instead of \"aaabbbccc\"", s)
+		return
+	}
+}
+
 func TestWriteFile(t *testing.T) {
 	name, err := tempFileName("xxx")
 

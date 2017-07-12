@@ -746,6 +746,27 @@ func FromCommand(name string, args ...string) Iter {
 	return FromCommandSF(nil, name, args...)
 }
 
+// ScanNullTerminatedStrings is a split function that splits input on null bytes. Useful mostly
+// with FromCommand* functions, in cases where the invoked command generates null-terminated
+// strings, like 'find ... -print0'.
+func ScanNullTerminatedStrings(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.IndexByte(data, 0); i >= 0 {
+		// got the string
+		return i + 1, data[0:i], nil
+	}
+
+	// last string must be null-terminated
+	if atEOF {
+		return 0, nil, errors.New("Last string is not null-terminated")
+	}
+
+	return 0, nil, nil
+}
+
 // Pred is the type of string predicate. The type has a number of combining methods allowing for
 // convenient composition of predicate functions, for example:
 //    strit.Not(strit.Empty).AndNot(strit.StartsWith("#"))
