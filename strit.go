@@ -747,7 +747,7 @@ func FromCommand(name string, args ...string) Iter {
 }
 
 // ScanNullTerminatedStrings is a split function that splits input on null bytes. Useful mostly
-// with FromCommand* functions, in cases where the invoked command generates null-terminated
+// with FromCommandSF function, in cases where the invoked command generates null-terminated
 // strings, like 'find ... -print0'.
 func ScanNullTerminatedStrings(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
