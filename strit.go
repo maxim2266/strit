@@ -119,6 +119,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -126,7 +127,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"fmt"
 )
 
 // Func is the type of callback function used by Iter.
@@ -734,8 +734,8 @@ func FromCommandSF(sf bufio.SplitFunc, name string, args ...string) Iter {
 			// wrap the error
 			if e, ok := err.(*exec.ExitError); ok {
 				err = &ExitError{
-					Name: name,
-					Err: e,
+					Name:   name,
+					Err:    e,
 					Stderr: string(bytes.TrimSpace(stderr.Bytes())),
 				}
 			}
@@ -748,7 +748,7 @@ func FromCommandSF(sf bufio.SplitFunc, name string, args ...string) Iter {
 // ExitError is the error type used for delivering shell command failure reason and 'stderr' output.
 type ExitError struct {
 	Name, Stderr string
-	Err error
+	Err          error
 }
 
 // Error formats error message from ExitError type.
