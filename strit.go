@@ -126,6 +126,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"fmt"
 )
 
 // Func is the type of callback function used by Iter.
@@ -730,14 +731,29 @@ func FromCommandSF(sf bufio.SplitFunc, name string, args ...string) Iter {
 
 		// wait for completion
 		if err = cmd.Wait(); err != nil {
-			// try to replace the error with command's stderr
-			if _, ok := err.(*exec.ExitError); ok && stderr.Len() > 0 {
-				err = errors.New(string(bytes.TrimSpace(stderr.Bytes())))
+			// wrap the error
+			if e, ok := err.(*exec.ExitError); ok {
+				err = &ExitError{
+					Name: name,
+					Err: e,
+					Stderr: string(bytes.TrimSpace(stderr.Bytes())),
+				}
 			}
 		}
 
 		return err
 	}
+}
+
+// ExitError is the error type used for delivering shell command failure reason and 'stderr' output.
+type ExitError struct {
+	Name, Stderr string
+	Err error
+}
+
+// Error formats error message from ExitError type.
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("Command %q: %s", e.Name, e.Err.Error())
 }
 
 // FromCommand constructs a new iterator that invokes the specified shell command,
