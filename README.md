@@ -112,7 +112,7 @@ func ReadConfig(fileName string) ([]string, error) {
 	[`AndNot`](https://godoc.org/github.com/maxim2266/strit#Pred.AndNot)
 	[`Or`](https://godoc.org/github.com/maxim2266/strit#Pred.Or)
 	[`OrNot`](https://godoc.org/github.com/maxim2266/strit#Pred.OrNot)
-* Basic parsing supported via [`Parse`](https://godoc.org/github.com/maxim2266/strit#Iter.Parse) function:
+* Basic parsing supported via [`Parse`](https://godoc.org/github.com/maxim2266/strit#Iter.Parse) function.
 
 ### More examples:
 * Naïve `grep`:
