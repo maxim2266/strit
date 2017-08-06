@@ -526,9 +526,21 @@ func (iter Iter) WriteToFile(name string) (int64, error) {
 	return iter.WriteSepToFile(name, "\n")
 }
 
+// ParserFunc represents input line parsers. The state of the parser is in the returned
+// instance of ParserFunc.
+type ParserFunc func([]byte) (ParserFunc, error)
+
+// Parse feeds the supplied parser from the given iterator.
+func (iter Iter) Parse(fn ParserFunc) error {
+	return iter(func(s []byte) (err error) {
+		fn, err = fn(s)
+		return
+	})
+}
+
 // FromReaderSF constructs a new iterator that reads its input byte stream from the specified Reader and
 // breaks the stream into tokens using the supplied split function. If the function is set to nil then
-// the iterator breaks the input into lines with line termination stripped. Internally the iterator
+// the iterator breaks the input into lines with line terminators stripped. Internally the iterator
 // is implemented using bufio.Scanner, please refer to its documentation for more details on split functions.
 func FromReaderSF(sf bufio.SplitFunc, input io.Reader) Iter {
 	return func(fn Func) (err error) {

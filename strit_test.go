@@ -31,6 +31,7 @@ package strit
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -42,6 +43,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 )
 
 func TestSimpleStrings(t *testing.T) {
@@ -557,6 +559,101 @@ func TestJoinBytes(t *testing.T) {
 		t.Errorf("Unexpected result: %q", string(res))
 		return
 	}
+}
+
+// parser test
+type dataItem struct {
+	A, B, C int
+}
+
+func TestParser(t *testing.T) {
+	const input = `
+	A 1
+	B 2
+	C 3
+	
+	A 4
+	B 5
+	C 6
+	
+	A 7
+	B 8
+	C 9`
+
+	i := 1
+
+	err := FromString(input).
+		Map(bytes.TrimSpace).
+		Filter(Not(Empty)).
+		Parse(makeParser(func(item *dataItem) error {
+			if item.A != i || item.B != i+1 || item.C != i+2 {
+				return fmt.Errorf("Unexpected value: A = %d, B = %d, C = %d", item.A, item.B, item.C)
+			}
+
+			i += 3
+			return nil
+		}))
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if i != 10 {
+		t.Errorf("Unexpected value of counter: %d instead of 10", i)
+		return
+	}
+}
+
+type dataItemParser struct {
+	fn   func(*dataItem) error
+	item *dataItem
+}
+
+func makeParser(fn func(*dataItem) error) ParserFunc {
+	p := &dataItemParser{fn: fn}
+	return p.getA
+}
+
+func (p *dataItemParser) getA(s []byte) (ParserFunc, error) {
+	var err error
+
+	p.item = new(dataItem)
+	p.item.A, err = getField("A", s)
+	return p.getB, err
+}
+
+func (p *dataItemParser) getB(s []byte) (ParserFunc, error) {
+	var err error
+
+	p.item.B, err = getField("B", s)
+	return p.getC, err
+}
+
+func (p *dataItemParser) getC(s []byte) (ParserFunc, error) {
+	var err error
+
+	if p.item.C, err = getField("C", s); err != nil {
+		return nil, err
+	}
+
+	return p.getA, p.fn(p.item)
+}
+
+func getField(name string, s []byte) (int, error) {
+	fields := bytes.FieldsFunc(s, unicode.IsSpace)
+
+	if len(fields) != 2 {
+		return 0, errors.New("Invalid number of fields: " + string(s))
+	}
+
+	k, v := string(fields[0]), string(fields[1])
+
+	if k != name {
+		return 0, errors.New("Invalid field name: " + k)
+	}
+
+	return strconv.Atoi(v)
 }
 
 // benchmarks
