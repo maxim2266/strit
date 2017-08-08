@@ -582,17 +582,16 @@ func TestParser(t *testing.T) {
 
 	i := 1
 
-	err := FromString(input).
-		Map(bytes.TrimSpace).
-		Filter(Not(Empty)).
-		Parse(makeParser(func(item *dataItem) error {
-			if item.A != i || item.B != i+1 || item.C != i+2 {
-				return fmt.Errorf("Unexpected value: A = %d, B = %d, C = %d", item.A, item.B, item.C)
-			}
+	fn := func(item *dataItem) error {
+		if item.A != i || item.B != i+1 || item.C != i+2 {
+			return fmt.Errorf("Unexpected value: A = %d, B = %d, C = %d", item.A, item.B, item.C)
+		}
 
-			i += 3
-			return nil
-		}))
+		i += 3
+		return nil
+	}
+
+	err := FromString(input).Map(bytes.TrimSpace).Filter(Not(Empty)).Parse(&dataItemParser{fn: fn})
 
 	if err != nil {
 		t.Error(err)
@@ -610,12 +609,11 @@ type dataItemParser struct {
 	item *dataItem
 }
 
-func makeParser(fn func(*dataItem) error) ParserFunc {
-	p := &dataItemParser{fn: fn}
-	return p.getA
+func (p *dataItemParser) Done(err error) error {
+	return err
 }
 
-func (p *dataItemParser) getA(s []byte) (ParserFunc, error) {
+func (p *dataItemParser) Enter(s []byte) (ParserFunc, error) {
 	var err error
 
 	p.item = new(dataItem)
@@ -637,7 +635,7 @@ func (p *dataItemParser) getC(s []byte) (ParserFunc, error) {
 		return nil, err
 	}
 
-	return p.getA, p.fn(p.item)
+	return p.Enter, p.fn(p.item)
 }
 
 func getField(name string, s []byte) (int, error) {

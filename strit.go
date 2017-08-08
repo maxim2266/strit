@@ -526,16 +526,29 @@ func (iter Iter) WriteToFile(name string) (int64, error) {
 	return iter.WriteSepToFile(name, "\n")
 }
 
-// ParserFunc represents input line parsers. The state of the parser is in the returned
-// instance of ParserFunc.
+// ParserFunc represents class of functions implementing parser state machines.
 type ParserFunc func([]byte) (ParserFunc, error)
 
+// Parser is the interface of a line parser.
+type Parser interface {
+	// Enter is the entry point of the parser and gets called on the first iteration.
+	// The returned function usually refers to another method of the same class, thus implementing
+	// the parser state machine. Any non-nil error stops the iteration.
+	Enter([]byte) (ParserFunc, error)
+
+	// Done is called after the iteration is complete or an error has occurred. The error
+	// it returns (if any) becomes the return value of the iterator.
+	Done(error) error
+}
+
 // Parse feeds the supplied parser from the given iterator.
-func (iter Iter) Parse(fn ParserFunc) error {
-	return iter(func(s []byte) (err error) {
+func (iter Iter) Parse(p Parser) error {
+	fn := p.Enter
+
+	return p.Done(iter(func(s []byte) (err error) {
 		fn, err = fn(s)
 		return
-	})
+	}))
 }
 
 // FromReaderSF constructs a new iterator that reads its input byte stream from the specified Reader and
