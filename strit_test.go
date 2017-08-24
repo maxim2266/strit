@@ -303,7 +303,7 @@ func TestPipe(t *testing.T) {
 
 	const str = "aaa\nbbb\nccc"
 
-	res, err := FromString(str).Pipe("cat").Join("\n")
+	res, err := FromString(str).Pipe("cat").Pipe("cat").Pipe("cat").Join("\n")
 
 	if err != nil {
 		t.Error(err)
@@ -323,12 +323,40 @@ func TestPipeTermination(t *testing.T) {
 
 	const msg = "Just an error"
 
+	// termination at the end of the pipe
 	err := FromString("aaa\nbbb\nccc").Pipe("cat")(func(s []byte) error {
 		if bytes.Compare(s, []byte("aaa")) != 0 {
 			return fmt.Errorf("Invalid string in callback: %q", string(s))
 		}
 
 		return errors.New(msg)
+	})
+
+	if err == nil {
+		t.Error("Missing error")
+		return
+	}
+
+	if err.Error() != msg {
+		t.Errorf("Unexpected error: %q instead of %q", err.Error(), msg)
+		return
+	}
+
+	// termination before pipe
+	iter := Iter(func(fn Func) error {
+		if err := fn([]byte("aaa")); err != nil {
+			return err
+		}
+
+		return errors.New(msg)
+	})
+
+	err = iter.Pipe("cat")(func(s []byte) error {
+		if bytes.Compare(s, []byte("aaa")) != 0 {
+			return fmt.Errorf("Invalid string in callback: %q", string(s))
+		}
+
+		return nil
 	})
 
 	if err == nil {
