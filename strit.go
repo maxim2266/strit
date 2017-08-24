@@ -706,68 +706,76 @@ func FromStrings(src []string) Iter {
 // documentation for more details on split functions.
 func FromCommandSF(sf bufio.SplitFunc, name string, args ...string) Iter {
 	return func(fn Func) error {
-		// command
 		cmd := exec.Command(name, args...)
-
-		// command's stdout
-		cmdOutput, err := cmd.StdoutPipe()
+		stdout, err := run(cmd)
 
 		if err != nil {
 			return err
 		}
 
-		// buffer for command's stderr
-		var stderr bytes.Buffer
+		if err = iterate(stdout, sf, fn); err != nil {
+			go killProcess(cmd, stdout)
 
-		cmd.Stderr = &stderr
-
-		// start command
-		if err = cmd.Start(); err != nil {
-			return err
-		}
-
-		// iterate over the output
-		if err = iterate(cmdOutput, sf, fn); err != nil {
-			// the process is no longer needed, stop it
-			go func() {
-				cmd.Process.Signal(os.Interrupt) // try SIGINT first
-
-				t := time.AfterFunc(5*time.Second, func() {
-					cmd.Process.Kill()
-				})
-
-				defer t.Stop()
-
-				// from the documentation (https://golang.org/pkg/os/exec/#Cmd.StdoutPipe):
-				// 	"it is incorrect to call Wait before all reads from the pipe have completed"
-				io.Copy(ioutil.Discard, cmdOutput)
-
-				// wait for completion
-				cmd.Wait()
-			}()
-
-			// return the error
 			if err == io.EOF {
-				err = nil
+				return nil
 			}
 
 			return err
 		}
 
-		// wait for completion
-		if err = cmd.Wait(); err != nil {
-			// wrap the error
-			if e, ok := err.(*exec.ExitError); ok {
-				err = &ExitError{
-					Name:   name,
-					Err:    e,
-					Stderr: string(bytes.TrimSpace(stderr.Bytes())),
-				}
+		return waitProcess(cmd)
+	}
+}
+
+func run(cmd *exec.Cmd) (io.Reader, error) {
+	// stderr
+	cmd.Stderr = new(bytes.Buffer)
+
+	// command's stdout
+	stdout, err := cmd.StdoutPipe()
+
+	if err != nil {
+		return nil, err
+	}
+
+	// start
+	if err = cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	return stdout, nil
+}
+
+func killProcess(cmd *exec.Cmd, stdout io.Reader) {
+	cmd.Process.Signal(os.Interrupt) // try SIGINT first
+
+	t := time.AfterFunc(5*time.Second, func() {
+		cmd.Process.Kill()
+	})
+
+	defer t.Stop()
+
+	// from the documentation (https://golang.org/pkg/os/exec/#Cmd.StdoutPipe):
+	// 	"it is incorrect to call Wait before all reads from the pipe have completed"
+	io.Copy(ioutil.Discard, stdout)
+
+	// wait for completion
+	cmd.Wait()
+}
+
+func waitProcess(cmd *exec.Cmd) (err error) {
+	if err = cmd.Wait(); err != nil {
+		// wrap the error
+		if e, ok := err.(*exec.ExitError); ok {
+			err = &ExitError{
+				Name:   cmd.Path,
+				Err:    e,
+				Stderr: string(bytes.TrimSpace(cmd.Stderr.(*bytes.Buffer).Bytes())),
 			}
 		}
-
-		return err
 	}
+
+	return
 }
 
 // ExitError is the error type used for delivering shell command failure reason and 'stderr' output.

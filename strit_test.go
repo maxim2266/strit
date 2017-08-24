@@ -271,7 +271,28 @@ func TestCommandError(t *testing.T) {
 		return
 	}
 
-	//	t.Logf("Message: %q", err)
+	// println(err.Error())
+}
+
+func TestCommandTermination(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		const msg = "Just an error"
+
+		err := FromCommand("find", ".", "-type", "f")(func(s []byte) error {
+			//println("Callback invoked with text: " + string(s))
+			return errors.New(msg)
+		})
+
+		if err == nil {
+			t.Error("Missing error")
+			return
+		}
+
+		if s := err.Error(); s != msg {
+			t.Errorf("Unexpected error message: %q instead of %q", s, msg)
+			return
+		}
+	}
 }
 
 func TestNullTerminatedStrings(t *testing.T) {
