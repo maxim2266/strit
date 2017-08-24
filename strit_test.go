@@ -275,35 +275,80 @@ func TestCommandError(t *testing.T) {
 }
 
 func TestCommandTermination(t *testing.T) {
-	if runtime.GOOS == "linux" {
-		const msg = "Just an error"
+	if runtime.GOOS != "linux" {
+		return
+	}
+	const msg = "Just an error"
 
-		err := FromCommand("find", ".", "-type", "f")(func(s []byte) error {
-			//println("Callback invoked with text: " + string(s))
-			return errors.New(msg)
-		})
+	err := FromCommand("find", ".", "-type", "f")(func(s []byte) error {
+		//println("Callback invoked with text: " + string(s))
+		return errors.New(msg)
+	})
 
-		if err == nil {
-			t.Error("Missing error")
-			return
-		}
+	if err == nil {
+		t.Error("Missing error")
+		return
+	}
 
-		if s := err.Error(); s != msg {
-			t.Errorf("Unexpected error message: %q instead of %q", s, msg)
-			return
-		}
+	if s := err.Error(); s != msg {
+		t.Errorf("Unexpected error message: %q instead of %q", s, msg)
+		return
 	}
 }
 
-func TestNullTerminatedStrings(t *testing.T) {
-	list, err := FromStringSF(ScanNullTerminatedStrings, "aaa\000bbb\000ccc\000").Strings()
+func TestPipe(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	const str = "aaa\nbbb\nccc"
+
+	res, err := FromString(str).Pipe("cat").Join("\n")
 
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	s := strings.Join(list, "")
+	if res != str {
+		t.Errorf("Unexpected result: %q instead of %q", res, str)
+		return
+	}
+}
+
+func TestPipeTermination(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	const msg = "Just an error"
+
+	err := FromString("aaa\nbbb\nccc").Pipe("cat")(func(s []byte) error {
+		if bytes.Compare(s, []byte("aaa")) != 0 {
+			return fmt.Errorf("Invalid string in callback: %q", string(s))
+		}
+
+		return errors.New(msg)
+	})
+
+	if err == nil {
+		t.Error("Missing error")
+		return
+	}
+
+	if err.Error() != msg {
+		t.Errorf("Unexpected error: %q instead of %q", err.Error(), msg)
+		return
+	}
+}
+
+func TestNullTerminatedStrings(t *testing.T) {
+	s, err := FromStringSF(ScanNullTerminatedStrings, "aaa\000bbb\000ccc\000").String()
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
 	if s != "aaabbbccc" {
 		t.Errorf("Unexpected string: %q instead of \"aaabbbccc\"", s)

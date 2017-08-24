@@ -382,6 +382,65 @@ func Merge(sep string, its ...Iter) Iter {
 	}
 }
 
+// PipeSF makes an iterator that pumps the data from its parent through the specified command
+// and iterates over the command's stdout, using the given splitter to separate strings.
+func (iter Iter) PipeSF(sf bufio.SplitFunc, command string, args ...string) Iter {
+	return func(fn Func) error {
+		cmd := exec.Command(command, args...)
+		stdin, err := cmd.StdinPipe()
+
+		if err != nil {
+			return err
+		}
+
+		errch := feed(iter, stdin)
+		stdout, err := run(cmd)
+
+		if err != nil {
+			return err
+		}
+
+		if err = iterate(stdout, sf, fn); err != nil {
+			go killProcess(cmd, stdout)
+
+			if err == io.EOF {
+				return nil
+			}
+
+			return err
+		}
+
+		if err = waitProcess(cmd); err == nil {
+			err = <-errch
+		}
+
+		return err
+	}
+}
+
+// PipeSF makes an iterator that pumps the data from its parent through the specified command
+// and iterates over the command's stdout.
+func (iter Iter) Pipe(command string, args ...string) Iter {
+	return iter.PipeSF(nil, command, args...)
+}
+
+func feed(iter Iter, out io.WriteCloser) (errch chan error) {
+	errch = make(chan error, 1)
+
+	go func() {
+		defer func() {
+			out.Close()
+			close(errch)
+		}()
+
+		if _, e := iter.WriteTo(out); e != nil {
+			errch <- e
+		}
+	}()
+
+	return
+}
+
 // String invokes the iterator and concatenates its output into one string.
 func (iter Iter) String() (res string, err error) {
 	var buff bytes.Buffer

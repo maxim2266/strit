@@ -84,6 +84,9 @@ func ReadConfig(fileName string) ([]string, error) {
 	[`TakeWhile`](https://godoc.org/github.com/maxim2266/strit#Iter.TakeWhile)
 * Search function:
 	[`FirstNonEmpty`](https://godoc.org/github.com/maxim2266/strit#Iter.FirstNonEmpty)
+* Piping iterator output through an external shell command:
+	[`Pipe`](https://godoc.org/github.com/maxim2266/strit#Iter.Pipe)
+	[`PipeSF`](https://godoc.org/github.com/maxim2266/strit#Iter.PipeSF)
 * Iterator chaining (sequential combination):
 	[`Chain`](https://godoc.org/github.com/maxim2266/strit#Chain)
 * Iterator merging (parallel combination):
