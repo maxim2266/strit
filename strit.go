@@ -418,7 +418,7 @@ func (iter Iter) PipeSF(sf bufio.SplitFunc, command string, args ...string) Iter
 	}
 }
 
-// PipeSF makes an iterator that pumps the data from its parent through the specified command
+// Pipe makes an iterator that pumps the data from its parent through the specified command
 // and iterates over the command's stdout.
 func (iter Iter) Pipe(command string, args ...string) Iter {
 	return iter.PipeSF(nil, command, args...)
