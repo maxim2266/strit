@@ -2,6 +2,7 @@
 
 [![GoDoc](https://godoc.org/github.com/maxim2266/strit?status.svg)](https://godoc.org/github.com/maxim2266/strit)
 [![Go report](http://goreportcard.com/badge/maxim2266/strit)](http://goreportcard.com/report/maxim2266/strit)
+[![License: BSD 3 Clause](https://img.shields.io/badge/License-BSD_3--Clause-yellow.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 Package `strit` (STRing ITerator) assists in development of string processing pipelines by providing a simple
 iteration model that allows for easy composition of processing stages.
