@@ -526,7 +526,7 @@ func (iter Iter) WriteSepTo(dest io.Writer, sep string) (n int64, err error) {
 			num, e = dest.Write(delim)
 			n += int64(num)
 
-			if err != nil {
+			if e != nil {
 				return
 			}
 		}
@@ -574,7 +574,12 @@ func (iter Iter) WriteSepToFile(name, sep string) (n int64, err error) {
 		}
 	}()
 
-	n, err = iter.WriteSepTo(file, sep)
+	w := bufio.NewWriter(file)
+
+	if n, err = iter.WriteSepTo(file, sep); err == nil {
+		err = w.Flush()
+	}
+
 	return
 }
 
