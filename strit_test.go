@@ -543,7 +543,7 @@ func TestFromDirWalk(t *testing.T) {
 		{
 			func(_ string, _ os.FileInfo, _ error) error { return nil }, // accept everything
 			map[string]int{
-				dir: 0,
+				dir:                               0,
 				filepath.Join(dir, "aaa"):         0,
 				filepath.Join(dir, "bbb"):         0,
 				filepath.Join(dir, "ccc"):         0,
@@ -562,7 +562,7 @@ func TestFromDirWalk(t *testing.T) {
 				return nil
 			},
 			map[string]int{
-				dir: 0,
+				dir:                       0,
 				filepath.Join(dir, "aaa"): 0,
 				filepath.Join(dir, "bbb"): 0,
 				filepath.Join(dir, "ccc"): 0,
@@ -577,7 +577,7 @@ func TestFromDirWalk(t *testing.T) {
 				return nil
 			},
 			map[string]int{
-				dir: 0,
+				dir:                       0,
 				filepath.Join(dir, "aaa"): 0,
 			},
 		},

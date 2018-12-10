@@ -576,7 +576,7 @@ func (iter Iter) WriteSepToFile(name, sep string) (n int64, err error) {
 
 	w := bufio.NewWriter(file)
 
-	if n, err = iter.WriteSepTo(file, sep); err == nil {
+	if n, err = iter.WriteSepTo(w, sep); err == nil {
 		err = w.Flush()
 	}
 
