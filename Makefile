@@ -9,5 +9,4 @@ test : check
 	go test
 
 check : $(SRC)
-	gofmt -w -s $^
 	goimports -w $^

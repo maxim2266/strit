@@ -955,7 +955,9 @@ func iterate(input io.Reader, sf bufio.SplitFunc, fn Func) error {
 	}
 
 	for src.Scan() {
-		if err := fn(src.Bytes()); err != nil {
+		s := src.Bytes()
+
+		if err := fn(s[:len(s):len(s)]); err != nil {
 			return err // returns io.EOF when stopped early
 		}
 	}

@@ -63,6 +63,32 @@ func TestSimpleStrings(t *testing.T) {
 	}
 }
 
+func TestOverwrite(t *testing.T) {
+	i := 0
+	iter := FromBytes([]byte(overwriteSrc))
+
+	err := iter(func(s []byte) error {
+		switch i {
+		case 0:
+			s = append(s, " zzz"...)
+		case 1:
+			if bytes.Compare(s, []byte("long long long long string")) != 0 {
+				return fmt.Errorf("Unexpected string: %q", string(s))
+			}
+		}
+
+		i++
+		return nil
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+const overwriteSrc = `short string
+long long long long string`
+
 func TestSimpleMapFilter(t *testing.T) {
 	if err := testABC("\n aaa \n    \n\n bbb\nccc  ", nil); err != nil {
 		t.Error(err)
@@ -665,11 +691,11 @@ func TestParser(t *testing.T) {
 	A 1
 	B 2
 	C 3
-	
+
 	A 4
 	B 5
 	C 6
-	
+
 	A 7
 	B 8
 	C 9`
