@@ -36,7 +36,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"runtime"
 	"sort"
 	"testing"
 )
@@ -213,10 +212,6 @@ func TestBreak(t *testing.T) {
 }
 
 func TestPipeTermination(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		return
-	}
-
 	const msg = "Just an error"
 
 	// termination at the end of the pipe
