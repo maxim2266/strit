@@ -215,7 +215,7 @@ func TestPipeTermination(t *testing.T) {
 	const msg = "Just an error"
 
 	// termination at the end of the pipe
-	err := FromString("aaa\nbbb\nccc").Pipe("cat")(func(s []byte) error {
+	err := FromString("aaa\nbbb\nccc").Pipe(exec.Command("cat"))(func(s []byte) error {
 		if bytes.Compare(s, []byte("aaa")) != 0 {
 			return fmt.Errorf("Invalid string in callback: %q", string(s))
 		}
@@ -242,7 +242,7 @@ func TestPipeTermination(t *testing.T) {
 		return errors.New(msg)
 	})
 
-	err = iter.Pipe("cat")(func(s []byte) error {
+	err = iter.Pipe(exec.Command("cat"))(func(s []byte) error {
 		if bytes.Compare(s, []byte("aaa")) != 0 {
 			return fmt.Errorf("Invalid string in callback: %q", string(s))
 		}

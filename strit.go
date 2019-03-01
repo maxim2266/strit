@@ -813,9 +813,8 @@ func FromCommand(cmd *exec.Cmd) Iter {
 
 // PipeSF makes an iterator that pumps the data from its parent through the specified command
 // and iterates over the command's stdout, using the given splitter to separate strings.
-func (iter Iter) PipeSF(sf bufio.SplitFunc, command string, args ...string) Iter {
+func (iter Iter) PipeSF(cmd *exec.Cmd, sf bufio.SplitFunc) Iter {
 	return func(fn Func) error {
-		cmd := exec.Command(command, args...)
 		stdin, err := cmd.StdinPipe()
 
 		if err != nil {
@@ -834,8 +833,8 @@ func (iter Iter) PipeSF(sf bufio.SplitFunc, command string, args ...string) Iter
 
 // Pipe makes an iterator that pumps the data from its parent through the specified command
 // and iterates over the command's stdout.
-func (iter Iter) Pipe(command string, args ...string) Iter {
-	return iter.PipeSF(nil, command, args...)
+func (iter Iter) Pipe(cmd *exec.Cmd) Iter {
+	return iter.PipeSF(cmd, nil)
 }
 
 func feed(iter Iter, out io.WriteCloser) (errch chan error) {

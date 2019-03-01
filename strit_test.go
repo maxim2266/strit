@@ -330,7 +330,7 @@ func TestPipe(t *testing.T) {
 
 	const str = "aaa\nbbb\nccc"
 
-	res, err := FromString(str).Pipe("cat").Pipe("cat").Pipe("cat").Join("\n")
+	res, err := FromString(str).Pipe(exec.Command("cat")).Pipe(exec.Command("cat")).Pipe(exec.Command("cat")).Join("\n")
 
 	if err != nil {
 		t.Error(err)
