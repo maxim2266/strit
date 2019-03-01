@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017, Maxim Konakov
+Copyright (c) 2017,2018,2019 Maxim Konakov
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -37,6 +37,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -220,7 +221,7 @@ func TestCatFileOfInts(t *testing.T) {
 
 	var i int64
 
-	if err = FromCommand(cat(), name)(func(line []byte) error {
+	if err = FromCommand(exec.Command(cat(), name))(func(line []byte) error {
 		val, e := strconv.ParseInt(string(line), 10, 64)
 
 		if e != nil {
@@ -253,7 +254,7 @@ func TestCatSearchFileOfInts(t *testing.T) {
 
 	var i int64
 
-	if err = FromCommand(cat(), name)(func(line []byte) error {
+	if err = FromCommand(exec.Command(cat(), name))(func(line []byte) error {
 		val, e := strconv.ParseInt(string(line), 10, 64)
 
 		if e != nil {
@@ -287,7 +288,7 @@ func TestCatSearchFileOfInts(t *testing.T) {
 }
 
 func TestCommandError(t *testing.T) {
-	err := FromCommand(cat(), "nonexistent-file")(func(_ []byte) error {
+	err := FromCommand(exec.Command(cat(), "nonexistent-file"))(func(_ []byte) error {
 		t.Error("Unexpected callback invocation")
 		return io.EOF
 	})
@@ -306,7 +307,7 @@ func TestCommandTermination(t *testing.T) {
 	}
 	const msg = "Just an error"
 
-	err := FromCommand("find", ".", "-type", "f")(func(s []byte) error {
+	err := FromCommand(exec.Command("find", ".", "-type", "f"))(func(s []byte) error {
 		//println("Callback invoked with text: " + string(s))
 		return errors.New(msg)
 	})
@@ -342,62 +343,8 @@ func TestPipe(t *testing.T) {
 	}
 }
 
-func TestPipeTermination(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		return
-	}
-
-	const msg = "Just an error"
-
-	// termination at the end of the pipe
-	err := FromString("aaa\nbbb\nccc").Pipe("cat")(func(s []byte) error {
-		if bytes.Compare(s, []byte("aaa")) != 0 {
-			return fmt.Errorf("Invalid string in callback: %q", string(s))
-		}
-
-		return errors.New(msg)
-	})
-
-	if err == nil {
-		t.Error("Missing error")
-		return
-	}
-
-	if err.Error() != msg {
-		t.Errorf("Unexpected error: %q instead of %q", err.Error(), msg)
-		return
-	}
-
-	// termination before pipe
-	iter := Iter(func(fn Func) error {
-		if err := fn([]byte("aaa")); err != nil {
-			return err
-		}
-
-		return errors.New(msg)
-	})
-
-	err = iter.Pipe("cat")(func(s []byte) error {
-		if bytes.Compare(s, []byte("aaa")) != 0 {
-			return fmt.Errorf("Invalid string in callback: %q", string(s))
-		}
-
-		return nil
-	})
-
-	if err == nil {
-		t.Error("Missing error")
-		return
-	}
-
-	if err.Error() != msg {
-		t.Errorf("Unexpected error: %q instead of %q", err.Error(), msg)
-		return
-	}
-}
-
-func TestNullTerminatedStrings(t *testing.T) {
-	s, err := FromStringSF(ScanNullTerminatedStrings, "aaa\000bbb\000ccc\000").String()
+func TestNullTerminatedLines(t *testing.T) {
+	s, err := FromStringSF(ScanNullTerminatedLines, "aaa\000bbb\000ccc\000").String()
 
 	if err != nil {
 		t.Error(err)

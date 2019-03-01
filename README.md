@@ -71,7 +71,7 @@ func ReadConfig(fileName string) ([]string, error) {
   	[`FromDir`](https://godoc.org/github.com/maxim2266/strit#FromDir)
   * Recursive directory listing:
   	[`FromDirWalk`](https://godoc.org/github.com/maxim2266/strit#FromDirWalk)
-  * Shell command output:
+  * External command output:
   	[`FromCommand`](https://godoc.org/github.com/maxim2266/strit#FromCommand)
   	[`FromCommandSF`](https://godoc.org/github.com/maxim2266/strit#FromCommandSF)
 * Mapping and filtering primitives:
@@ -85,7 +85,7 @@ func ReadConfig(fileName string) ([]string, error) {
 	[`TakeWhile`](https://godoc.org/github.com/maxim2266/strit#Iter.TakeWhile)
 * Search function:
 	[`FirstNonEmpty`](https://godoc.org/github.com/maxim2266/strit#Iter.FirstNonEmpty)
-* Piping iterator output through an external shell command:
+* Piping iterator output through an external command:
 	[`Pipe`](https://godoc.org/github.com/maxim2266/strit#Iter.Pipe)
 	[`PipeSF`](https://godoc.org/github.com/maxim2266/strit#Iter.PipeSF)
 * Iterator chaining (sequential combination):
@@ -151,9 +151,9 @@ func namesWithTrackNumbers(dir string) ([]string, error) {
 func prependTrackNo(file []byte) ([]byte, error) {
 	name := string(file)
 
-	no, err := strit.FromCommand("metaflac", "--list", "--block-type=VORBIS_COMMENT", name).
+	no, err := strit.FromCommand(exec.Command("metaflac", "--list", "--block-type=VORBIS_COMMENT", name)).
 		FirstNonEmpty(func(s []byte) []byte {
-			if m := trackNoRegex.FindSubmatch(s); len(m) == 2 {
+			if m := match(s); len(m) == 2 {
 				return m[1]
 			}
 
@@ -172,11 +172,11 @@ func prependTrackNo(file []byte) ([]byte, error) {
 	return []byte(no + ": " + filepath.Base(name)), nil
 }
 
-var trackNoRegex = regexp.MustCompile(`tracknumber=([[:digit:]]+)$`)
+var match = regexp.MustCompile(`tracknumber=([[:digit:]]+)$`).FindSubmatch
 ```
 
 ### Project status
-The project is in a beta state. Tested on Linux Mint 18 (based on Ubuntu 16.04). Go version 1.8.
-Should also work on other platforms supported by Go runtime, but currently this is not tested.
+The project is in a beta state. Tested on Linux Mint 19.1, with Go version 1.12.
+Should also work on other platforms supported by Go runtime, but currently this is not very well tested.
 
 ##### License: BSD

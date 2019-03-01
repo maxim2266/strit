@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017, Maxim Konakov
+Copyright (c) 2017,2018,2019 Maxim Konakov
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -126,7 +126,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // Func is the type of callback function used by Iter.
@@ -380,65 +379,6 @@ func Merge(sep string, its ...Iter) Iter {
 			return fn([]byte(strings.Join(buff, sep)))
 		})
 	}
-}
-
-// PipeSF makes an iterator that pumps the data from its parent through the specified command
-// and iterates over the command's stdout, using the given splitter to separate strings.
-func (iter Iter) PipeSF(sf bufio.SplitFunc, command string, args ...string) Iter {
-	return func(fn Func) error {
-		cmd := exec.Command(command, args...)
-		stdin, err := cmd.StdinPipe()
-
-		if err != nil {
-			return err
-		}
-
-		errch := feed(iter, stdin)
-		stdout, err := run(cmd)
-
-		if err != nil {
-			return err
-		}
-
-		if err = iterate(stdout, sf, fn); err != nil {
-			go killProcess(cmd, stdout)
-
-			if err == io.EOF {
-				return nil
-			}
-
-			return err
-		}
-
-		if err = waitProcess(cmd); err == nil {
-			err = <-errch
-		}
-
-		return err
-	}
-}
-
-// Pipe makes an iterator that pumps the data from its parent through the specified command
-// and iterates over the command's stdout.
-func (iter Iter) Pipe(command string, args ...string) Iter {
-	return iter.PipeSF(nil, command, args...)
-}
-
-func feed(iter Iter, out io.WriteCloser) (errch chan error) {
-	errch = make(chan error, 1)
-
-	go func() {
-		defer func() {
-			out.Close()
-			close(errch)
-		}()
-
-		if _, e := iter.WriteTo(out); e != nil {
-			errch <- e
-		}
-	}()
-
-	return
 }
 
 // String invokes the iterator and concatenates its output into one string.
@@ -763,121 +703,173 @@ func FromStrings(src []string) Iter {
 	}
 }
 
-// FromCommandSF constructs a new iterator that invokes the specified shell command,
+// FromCommandSF constructs a new iterator that invokes the specified command,
 // reads the command output (stdout) and breaks it into tokens using the supplied split function.
-// If the function is set to nil then the iterator breaks the command output into lines with line termination
+// If the split function is set to nil then the iterator breaks the command output into lines with line termination
 // stripped. Internally the iterator is implemented using bufio.Scanner, please refer to its
 // documentation for more details on split functions.
-func FromCommandSF(sf bufio.SplitFunc, name string, args ...string) Iter {
+func FromCommandSF(cmd *exec.Cmd, sf bufio.SplitFunc) Iter {
+	return func(fn Func) (err error) {
+		// stdout
+		var stdout io.ReadCloser
+
+		if stdout, err = cmd.StdoutPipe(); err != nil {
+			return
+		}
+
+		// stderr
+		var stderr limitedWriter
+
+		stderr.limit = 4 * 1024 // accept only up to 4K
+		cmd.Stderr = &stderr
+
+		// start the command
+		if err = cmd.Start(); err != nil {
+			return
+		}
+
+		// stdout reader
+		src := bufio.NewScanner(bufio.NewReader(stdout))
+
+		if sf != nil {
+			src.Split(sf)
+		}
+
+		// iterate
+	scanner:
+		for src.Scan() {
+			s := src.Bytes()
+
+			switch err = fn(s[:len(s):len(s)]); err {
+			case nil:
+				// ok
+			case io.EOF: // not an error
+				_, err = io.Copy(ioutil.Discard, stdout)
+				break scanner
+			default:
+				io.Copy(ioutil.Discard, stdout)
+				break scanner
+			}
+		}
+
+		if err == nil {
+			err = src.Err()
+		}
+
+		// error check
+		if err != nil {
+			cmd.Wait()
+		} else if err = cmd.Wait(); err != nil {
+			// replace error message with stderr, if any
+			if e, ok := err.(*exec.ExitError); ok {
+				err = &ExitError{
+					ExitCode: e.ExitCode(),
+					Stderr:   string(bytes.TrimSpace(stderr.buff)),
+				}
+			}
+		}
+
+		// all done
+		return
+	}
+}
+
+// limited writer: discards everything beyond the specified number of bytes
+type limitedWriter struct {
+	buff  []byte
+	limit int
+}
+
+func (w *limitedWriter) Write(s []byte) (int, error) {
+	if n := min(len(s), w.limit-len(w.buff)); n > 0 {
+		w.buff = append(w.buff, s[:n]...)
+	}
+
+	return len(s), nil
+}
+
+// ExitError is the error type used for delivering command exit code and 'stderr' output.
+type ExitError struct {
+	ExitCode int
+	Stderr   string
+}
+
+// Error formats error message from ExitError type.
+func (e *ExitError) Error() string {
+	msg := fmt.Sprintf("exit code %d", e.ExitCode)
+
+	if len(e.Stderr) > 0 {
+		msg += ": " + e.Stderr
+	}
+
+	return msg
+}
+
+// FromCommand constructs a new iterator that invokes the specified command,
+// reads the command output (stdout) and breaks it into lines with line termination stripped.
+func FromCommand(cmd *exec.Cmd) Iter {
+	return FromCommandSF(cmd, nil)
+}
+
+// PipeSF makes an iterator that pumps the data from its parent through the specified command
+// and iterates over the command's stdout, using the given splitter to separate strings.
+func (iter Iter) PipeSF(sf bufio.SplitFunc, command string, args ...string) Iter {
 	return func(fn Func) error {
-		cmd := exec.Command(name, args...)
-		stdout, err := run(cmd)
+		cmd := exec.Command(command, args...)
+		stdin, err := cmd.StdinPipe()
 
 		if err != nil {
 			return err
 		}
 
-		if err = iterate(stdout, sf, fn); err != nil {
-			go killProcess(cmd, stdout)
+		errch := feed(iter, stdin)
 
-			if err == io.EOF {
-				return nil
-			}
-
-			return err
+		if err = FromCommandSF(cmd, sf)(fn); err == nil {
+			err = <-errch
 		}
 
-		return waitProcess(cmd)
+		return err
 	}
 }
 
-func run(cmd *exec.Cmd) (io.Reader, error) {
-	// stderr
-	cmd.Stderr = new(bytes.Buffer)
-
-	// command's stdout
-	stdout, err := cmd.StdoutPipe()
-
-	if err != nil {
-		return nil, err
-	}
-
-	// start
-	if err = cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	return stdout, nil
+// Pipe makes an iterator that pumps the data from its parent through the specified command
+// and iterates over the command's stdout.
+func (iter Iter) Pipe(command string, args ...string) Iter {
+	return iter.PipeSF(nil, command, args...)
 }
 
-func killProcess(cmd *exec.Cmd, stdout io.Reader) {
-	cmd.Process.Signal(os.Interrupt) // try SIGINT first
+func feed(iter Iter, out io.WriteCloser) (errch chan error) {
+	errch = make(chan error, 1)
 
-	t := time.AfterFunc(5*time.Second, func() {
-		cmd.Process.Kill()
-	})
+	go func() {
+		defer func() {
+			out.Close()
+			close(errch)
+		}()
 
-	defer t.Stop()
-
-	// from the documentation (https://golang.org/pkg/os/exec/#Cmd.StdoutPipe):
-	// 	"it is incorrect to call Wait before all reads from the pipe have completed"
-	io.Copy(ioutil.Discard, stdout)
-
-	// wait for completion
-	cmd.Wait()
-}
-
-func waitProcess(cmd *exec.Cmd) (err error) {
-	if err = cmd.Wait(); err != nil {
-		// wrap the error
-		if e, ok := err.(*exec.ExitError); ok {
-			err = &ExitError{
-				Name:   cmd.Path,
-				Err:    e,
-				Stderr: string(bytes.TrimSpace(cmd.Stderr.(*bytes.Buffer).Bytes())),
-			}
+		if _, e := iter.WriteTo(out); e != nil {
+			errch <- e
 		}
-	}
+	}()
 
 	return
 }
 
-// ExitError is the error type used for delivering shell command failure reason and 'stderr' output.
-type ExitError struct {
-	Name, Stderr string
-	Err          error
-}
-
-// Error formats error message from ExitError type.
-func (e *ExitError) Error() string {
-	return fmt.Sprintf("Command %q: %s", e.Name, e.Err.Error())
-}
-
-// FromCommand constructs a new iterator that invokes the specified shell command,
-// reads the command output (stdout) and breaks it into lines with line termination stripped.
-func FromCommand(name string, args ...string) Iter {
-	return FromCommandSF(nil, name, args...)
-}
-
-// ScanNullTerminatedStrings is a split function that splits input on null bytes. Useful mostly
+// ScanNullTerminatedLines is a split function that splits input on null bytes. Useful mostly
 // with FromCommandSF function, in cases where the invoked command generates null-terminated
 // strings, like 'find ... -print0'.
-func ScanNullTerminatedStrings(data []byte, atEOF bool) (advance int, token []byte, err error) {
+func ScanNullTerminatedLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
-		return 0, nil, nil
+		return
 	}
 
 	if i := bytes.IndexByte(data, 0); i >= 0 {
-		// got the string
-		return i + 1, data[0:i], nil
+		advance, token = i+1, data[:i] // got the string
+	} else if atEOF {
+		err = errors.New("last string is not null-terminated")
 	}
 
-	// last string must be null-terminated
-	if atEOF {
-		return 0, nil, errors.New("Last string is not null-terminated")
-	}
-
-	return 0, nil, nil
+	return
 }
 
 // Pred is the type of string predicate. The type has a number of combining methods allowing for
@@ -1002,3 +994,12 @@ func defaultFilePredicate(info os.FileInfo) bool {
 
 // defaultDirWalkFunc is the default function for FromDirWalk() constructor. It accepts all the entries.
 func defaultDirWalkFunc(_ string, _ os.FileInfo, _ error) error { return nil }
+
+// min
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+
+	return b
+}
