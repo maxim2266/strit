@@ -714,6 +714,12 @@ func FromCommandSF(cmd *exec.Cmd, sf bufio.SplitFunc) Iter {
 		var stdout io.ReadCloser
 
 		if stdout, err = cmd.StdoutPipe(); err != nil {
+			if cmd.Stdin != nil {
+				if s, ok := cmd.Stdin.(io.ReadCloser); ok {
+					s.Close()
+				}
+			}
+
 			return
 		}
 
